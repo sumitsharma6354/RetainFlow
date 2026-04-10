@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header style="margin-bottom: 32px;">
+    <div style="display: flex; align-items: center; gap: 16px;">
+        <a href="/customers" style="color: var(--text-secondary); text-decoration: none;"><i
+                class="fas fa-arrow-left"></i> Back</a>
+        <h1 style="font-size: 2rem;">Customer Analysis: {{ customer_id }}</h1>
+    </div>
+</header>
+
+<div style="display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 24px; margin-bottom: 24px;">
+    <!-- Profile Card -->
+    <div class="glass-card">
+        <div style="text-align: center; margin-bottom: 24px;">
+            <div
+                style="width: 80px; height: 80px; background: var(--accent-blue); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; font-size: 2rem; font-weight: 800;">
+                {{ customer_id[0] }}</div>
+            <h2 id="profile-id">{{ customer_id }}</h2>
+            <div style="display: flex; justify-content: center; gap: 8px; margin-top: 8px;" id="profile-badges"></div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; font-size: 0.9rem;">
+            <div>
+                <p style="color: var(--text-secondary);">Tenure</p>
+                <p id="profile-tenure">-</p>
+            </div>
+            <div>
+                <p style="color: var(--text-secondary);">Contract</p>
+                <p id="profile-contract">-</p>
+            </div>
+            <div>
+                <p style="color: var(--text-secondary);">Monthly</p>
+                <p id="profile-monthly">-</p>
+            </div>
+            <div>
+                <p style="color: var(--text-secondary);">Total</p>
+                <p id="profile-total">-</p>
+            </div>
+        </div>
+        <div style="margin-top: 24px;">
+            <p
+                style="color: var(--text-secondary); margin-bottom: 12px; font-size: 0.8rem; text-transform: uppercase; font-weight: 700;">
+                Services</p>
+            <div id="service-chips" style="display: flex; flex-wrap: wrap; gap: 8px;"></div>
+        </div>
+    </div>
+
+    <!-- Gauge Card -->
+    <div class="glass-card"
+        style="display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;">
+        <h3 style="margin-bottom: 32px;">Churn Probability</h3>
+        <div style="position: relative; width: 240px; height: 120px; overflow: hidden;">
+            <svg viewBox="0 0 240 120" style="width: 100%; height: 100%;">
+                <path d="M20,110 A100,100 0 0,1 220,110" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="20"
+                    stroke-linecap="round" />
+                <path d="M20,110 A100,100 0 0,1 220,110" id="gauge-arc" fill="none" stroke="url(#gaugeGradient)"
+                    stroke-width="20" stroke-linecap="round" stroke-dasharray="0, 314" />
+                <defs>
+                    <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" style="stop-color: var(--accent-green); stop-opacity: 1" />
+                        <stop offset="50%" style="stop-color: var(--accent-amber); stop-opacity: 1" />
+                        <stop offset="100%" style="stop-color: var(--accent-red); stop-opacity: 1" />
+                    </linearGradient>
+                </defs>
+            </svg>
+            <div id="gauge-needle"
+                style="position: absolute; bottom: 10px; left: 50%; width: 4px; height: 90px; background: white; transform-origin: center 100%; transform: rotate(-90deg); transition: transform 1.5s cubic-bezier(0.17, 0.67, 0.83, 0.67); border-radius: 4px;">
+            </div>
+        </div>
+        <div style="margin-top: -10px;">
+            <p id="gauge-percent" style="font-size: 3rem; font-weight: 800; margin-bottom: 8px;">0%</p>
+            <p id="risk-badge" class="badge">UNKNOWN RISK</p>
+        </div>
+    </div>
+
+    <!-- SHAP Card -->
+    <div class="glass-card">
+        <h3 style="margin-bottom: 16px;">Top Risk Factors</h3>
+        <p style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 24px;">Drivers contributing to this
+            prediction.</p>
+        <div id="shap-bars" style="display: flex; flex-direction: column; gap: 16px;"></div>
+    </div>
+</div>
+
+<!-- Retention Card -->
+<div class="glass-card" id="retention-card"
+    style="border-left: 8px solid var(--accent-amber); position: relative; overflow: hidden;">
+    <div
+        style="position: absolute; right: -20px; top: -20px; font-size: 8rem; opacity: 0.05; transform: rotate(15deg);">
+        <i class="fas fa-hand-holding-heart"></i></div>
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                <span id="retention-urgency" class="badge">URGENCY: LOW</span>
+                <span style="color: var(--text-secondary); font-size: 0.9rem;">Recommended Action</span>
+            </div>
+            <h2 id="retention-offer" style="font-size: 1.8rem; margin-bottom: 8px;">-</h2>
+            <p id="retention-value" style="color: var(--accent-green); font-weight: 600;">Estimated Annual Save Value:
+                $0.00</p>
+        </div>
+        <button class="btn" id="contact-btn" onclick="updateStatus('contacted')"
+            style="padding: 16px 32px; font-size: 1.1rem; border-radius: 12px;">Mark as Contacted</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    const customerId = "{{ customer_id }}";
+
+    document.addEventListener('DOMContentLoaded', async () => {
+        const data = await fetch(`/api/customer/${customerId}`).then(res => res.json());
+        renderProfile(data.customer, data.retention_status);
+        renderGauge(data.prediction.churn_probability, data.prediction.risk_level);
+        renderSHAP(data.prediction.shap_values);
+        renderRetention(data.retention, data.retention_status);
+    });
+
+    function renderProfile(c, status) {
+        document.getElementById('profile-tenure').textContent = `${c.tenure} months`;
+        document.getElementById('profile-contract').textContent = c.contract;
+        document.getElementById('profile-monthly').textContent = `$${c.monthly_charges.toFixed(2)}`;
+        document.getElementById('profile-total').textContent = `$${c.total_charges.toFixed(2)}`;
+
+        const badges = document.getElementById('profile-badges');
+        badges.innerHTML = `
+            <span class="badge" style="background: rgba(255,255,255,0.05);">${c.gender}</span>
+            ${c.senior_citizen ? '<span class="badge badge-medium">Senior</span>' : ''}
+        `;
+
+        const services = [
+            { label: 'Phone', active: c.phone_service === 'Yes' },
+            { label: 'Internet', active: c.internet_service !== 'No' },
+            { label: 'Security', active: c.online_security === 'Yes' },
+            { label: 'Backup', active: c.online_backup === 'Yes' },
+            { label: 'Support', active: c.tech_support === 'Yes' },
+            { label: 'Streaming', active: c.streaming_tv === 'Yes' }
+        ];
+
+        const chips = document.getElementById('service-chips');
+        services.forEach(s => {
+            const chip = document.createElement('span');
+            chip.className = 'badge';
+            chip.style.background = s.active ? 'rgba(16, 185, 129, 0.1)' : 'rgba(255,255,255,0.05)';
+            chip.style.color = s.active ? 'var(--accent-green)' : 'var(--text-secondary)';
+            chip.style.opacity = s.active ? '1' : '0.5';
+            chip.textContent = s.label;
+            chips.appendChild(chip);
+        });
+    }
+
+    function renderGauge(prob, risk) {
+        const needle = document.getElementById('gauge-needle');
+        const percent = document.getElementById('gauge-percent');
+        const arc = document.getElementById('gauge-arc');
+        const badge = document.getElementById('risk-badge');
+
+        const angle = -90 + (prob * 180);
+        const dash = prob * 314;
+
+        setTimeout(() => {
+            needle.style.transform = `rotate(${angle}deg)`;
+            arc.style.strokeDasharray = `${dash}, 314`;
+
+            let current = 0;
+            const target = Math.round(prob * 100);
+            const interval = setInterval(() => {
+                if (current >= target) {
+                    clearInterval(interval);
+                } else {
+                    current++;
+                    percent.textContent = `${current}%`;
+                }
+            }, 10);
+        }, 100);
+
+        badge.textContent = `${risk} RISK`;
+        badge.className = `badge badge-${risk.toLowerCase()}`;
+    }
+
+    function renderSHAP(shap) {
+        const container = document.getElementById('shap-bars');
+        shap.forEach((s, i) => {
+            const div = document.createElement('div');
+            const color = s.direction === 'increases_risk' ? 'var(--accent-red)' : 'var(--accent-green)';
+            const width = Math.min(Math.abs(s.value) * 100, 100);
+
+            div.innerHTML = `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 0.8rem;">
+                    <span>${s.feature}</span>
+                    <span style="color: ${color}">${s.direction === 'increases_risk' ? '+' : ''}${s.value.toFixed(2)}</span>
+                </div>
+                <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.05); border-radius: 3px; overflow: hidden;">
+                    <div style="width: 0; height: 100%; background: ${color}; transition: width 1s ease-out ${i * 0.1}s; width: ${width}%"></div>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    function renderRetention(ret, status) {
+        document.getElementById('retention-offer').textContent = ret.offer;
+        document.getElementById('retention-value').textContent = `Estimated Annual Save Value: $${ret.estimated_save_value.toFixed(2)}`;
+
+        const urgency = document.getElementById('retention-urgency');
+        urgency.textContent = `URGENCY: ${ret.urgency.toUpperCase()}`;
+        urgency.className = `badge badge-${ret.urgency}`;
+
+        const card = document.getElementById('retention-card');
+        const color = ret.urgency === 'critical' ? 'var(--accent-red)' : (ret.urgency === 'high' ? 'var(--accent-amber)' : 'var(--accent-blue)');
+        card.style.borderLeftColor = color;
+
+        if (status !== 'to_contact') {
+            const btn = document.getElementById('contact-btn');
+            btn.textContent = status === 'contacted' ? '✓ Contacted' : '✓ Retained';
+            btn.disabled = true;
+            btn.style.background = 'var(--accent-green)';
+            btn.style.opacity = '0.7';
+        }
+    }
+
+    async function updateStatus(newStatus) {
+        const res = await fetch('/api/retention/update', {
+            method: 'POST',
+            body: JSON.stringify({ customer_id: customerId, status: newStatus })
+        }).then(r => r.json());
+
+        if (res.success) {
+            location.reload();
+        }
+    }
+</script>
+{% endblock %}

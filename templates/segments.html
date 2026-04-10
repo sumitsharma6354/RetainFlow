@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header style="margin-bottom: 32px;">
+    <h1 style="font-size: 2rem; margin-bottom: 8px;">Customer Segments</h1>
+    <p style="color: var(--text-secondary);">Analyze performance and risk across different customer clusters.</p>
+</header>
+
+<div id="segment-cards" class="stats-grid" style="grid-template-columns: repeat(2, 1fr); margin-bottom: 32px;"></div>
+
+<div class="charts-grid">
+    <div class="glass-card">
+        <h3 style="margin-bottom: 24px;">Customer Value Distribution</h3>
+        <p style="color: var(--text-secondary); font-size: 0.8rem; margin-bottom: 24px;">Tenure vs Monthly Charges
+            (Colored by Segment)</p>
+        <div style="height: 400px;">
+            <canvas id="scatterChart"></canvas>
+        </div>
+    </div>
+    <div class="glass-card" style="padding: 0;">
+        <div style="padding: 24px;">
+            <h3>Segment Efficiency</h3>
+        </div>
+        <table id="segment-table">
+            <thead>
+                <tr>
+                    <th>Segment</th>
+                    <th>Size</th>
+                    <th>Churn Rate</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/charts.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        initSegments();
+    });
+
+    async function initSegments() {
+        const segments = await fetch('/api/segments').then(r => r.json());
+        const scatterData = await fetch('/api/charts/tenure-vs-charges').then(r => r.json());
+
+        const container = document.getElementById('segment-cards');
+        const tbody = document.querySelector('#segment-table tbody');
+
+        const segmentColors = {
+            'High-value loyal': '#3B82F6',
+            'New at-risk': '#EF4444',
+            'Long-term stable': '#F59E0B',
+            'Occasional user': '#10B981'
+        };
+
+        segments.forEach((s, i) => {
+            const segColor = segmentColors[s.name] || '#9CA3AF';
+            const card = document.createElement('div');
+            card.className = 'glass-card animate-fade-up';
+            card.style.animationDelay = `${i * 100}ms`;
+            card.style.borderLeft = `4px solid ${segColor}`;
+            card.innerHTML = `
+                <div style="display: flex; justify-content: space-between;">
+                    <div>
+                        <h3 style="margin-bottom: 4px;">${s.name}</h3>
+                        <p style="color: var(--text-secondary); font-size: 0.8rem;">${s.count} Total Customers</p>
+                    </div>
+                    <div style="text-align: right;">
+                        <p style="font-size: 1.5rem; font-weight: 700;">${s.churn_rate}%</p>
+                        <p style="color: var(--text-secondary); font-size: 0.7rem;">Churn Rate</p>
+                    </div>
+                </div>
+                <div style="margin-top: 16px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                    <div>
+                        <p class="card-title" style="font-size: 0.7rem;">Avg tenure</p>
+                        <p style="font-weight: 600;">${s.avg_tenure}m</p>
+                    </div>
+                    <div>
+                        <p class="card-title" style="font-size: 0.7rem;">Avg Monthly</p>
+                        <p style="font-weight: 600;">$${s.avg_monthly_charges}</p>
+                    </div>
+                </div>
+            `;
+            container.appendChild(card);
+
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><div style="display: flex; align-items: center; gap: 8px;"><div style="width: 10px; height: 10px; border-radius: 50%; background: ${segColor}"></div>${s.name}</div></td>
+                <td>${s.count}</td>
+                <td><span class="badge" style="background: rgba(255,255,255,0.05)">${s.churn_rate}%</span></td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        renderScatterChart('scatterChart', scatterData);
+    }
+</script>
+{% endblock %}

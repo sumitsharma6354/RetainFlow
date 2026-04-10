@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header style="margin-bottom: 32px;">
+    <h1 style="font-size: 2rem; margin-bottom: 8px;">Retention Management</h1>
+    <p style="color: var(--text-secondary);">Manage retention efforts through an interactive Kanban board.</p>
+</header>
+
+<div style="display: flex; gap: 24px; margin-bottom: 32px;">
+    <div class="glass-card" style="flex: 1; padding: 16px; display: flex; align-items: center; gap: 16px;">
+        <div style="padding: 12px; background: rgba(239, 68, 68, 0.1); border-radius: 12px; color: var(--accent-red);">
+            <i class="fas fa-exclamation-triangle"></i></div>
+        <div>
+            <p class="card-title">At Risk</p>
+            <h3 id="stat-at-risk">0</h3>
+        </div>
+    </div>
+    <div class="glass-card" style="flex: 1; padding: 16px; display: flex; align-items: center; gap: 16px;">
+        <div
+            style="padding: 12px; background: rgba(245, 158, 11, 0.1); border-radius: 12px; color: var(--accent-amber);">
+            <i class="fas fa-phone"></i></div>
+        <div>
+            <p class="card-title">Contacted</p>
+            <h3 id="stat-contacted">0</h3>
+        </div>
+    </div>
+    <div class="glass-card" style="flex: 1; padding: 16px; display: flex; align-items: center; gap: 16px;">
+        <div
+            style="padding: 12px; background: rgba(16, 185, 129, 0.1); border-radius: 12px; color: var(--accent-green);">
+            <i class="fas fa-check-circle"></i></div>
+        <div>
+            <p class="card-title">Retained</p>
+            <h3 id="stat-retained">0</h3>
+        </div>
+    </div>
+</div>
+
+<div class="kanban-board">
+    <div class="kanban-col" id="col-to_contact">
+        <div class="kanban-header" style="border-color: var(--accent-red); color: var(--accent-red);">TO CONTACT</div>
+        <div class="kanban-list" ondrop="drop(event)" ondragover="allowDrop(event)" data-status="to_contact"></div>
+    </div>
+    <div class="kanban-col" id="col-contacted">
+        <div class="kanban-header" style="border-color: var(--accent-amber); color: var(--accent-amber);">CONTACTED
+        </div>
+        <div class="kanban-list" ondrop="drop(event)" ondragover="allowDrop(event)" data-status="contacted"></div>
+    </div>
+    <div class="kanban-col" id="col-retained">
+        <div class="kanban-header" style="border-color: var(--accent-green); color: var(--accent-green);">RETAINED</div>
+        <div class="kanban-list" ondrop="drop(event)" ondragover="allowDrop(event)" data-status="retained"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        loadKanban();
+    });
+
+    async function loadKanban() {
+        const res = await fetch('/api/customers?limit=100').then(r => r.json());
+        const customers = res.customers;
+
+        // We'll need to fetch full detail for each or adjust API
+        // For efficiency in this demo, let's fetch specific retention data
+        // For now, use data available and fill in with placeholders if needed
+
+        const counts = { to_contact: 0, contacted: 0, retained: 0 };
+
+        // Clear columns
+        document.querySelectorAll('.kanban-list').forEach(l => l.innerHTML = '');
+
+        // In a real app, /api/retention/list would be better
+        // For now, we'll fetch from customers and use their status if stored
+        // Let's iterate and show some cards
+        for (let c of customers.slice(0, 30)) {
+            const detail = await fetch(`/api/customer/${c.customer_id}`).then(r => r.json());
+            const status = detail.retention_status || 'to_contact';
+            counts[status]++;
+
+            const card = document.createElement('div');
+            card.className = 'kanban-card';
+            card.draggable = true;
+            card.id = `card-${c.customer_id}`;
+            card.ondragstart = drag;
+
+            card.innerHTML = `
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <strong>${c.customer_id}</strong>
+                    <span class="badge badge-${c.risk_level.toLowerCase()}">${c.risk_level}</span>
+                </div>
+                <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;">${detail.retention.offer}</p>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span class="badge badge-${detail.retention.urgency}" style="font-size: 0.65rem;">${detail.retention.urgency.toUpperCase()}</span>
+                    <a href="/customer/${c.customer_id}" style="color: var(--accent-blue); font-size: 0.75rem;">Details</a>
+                </div>
+            `;
+            document.querySelector(`#col-${status} .kanban-list`).appendChild(card);
+        }
+
+        document.getElementById('stat-at-risk').textContent = counts.to_contact;
+        document.getElementById('stat-contacted').textContent = counts.contacted;
+        document.getElementById('stat-retained').textContent = counts.retained;
+    }
+
+    function allowDrop(ev) {
+        ev.preventDefault();
+        ev.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)';
+    }
+
+    function drag(ev) {
+        ev.dataTransfer.setData("text", ev.target.id);
+    }
+
+    async function drop(ev) {
+        ev.preventDefault();
+        ev.currentTarget.style.background = 'transparent';
+        const cardId = ev.dataTransfer.getData("text");
+        const customerId = cardId.replace('card-', '');
+        const newStatus = ev.currentTarget.dataset.status;
+
+        const targetList = ev.currentTarget;
+        const card = document.getElementById(cardId);
+        targetList.appendChild(card);
+
+        card.classList.add('card-moving');
+        setTimeout(() => card.classList.remove('card-moving'), 400);
+
+        await fetch('/api/retention/update', {
+            method: 'POST',
+            body: JSON.stringify({ customer_id: customerId, status: newStatus })
+        });
+
+        // Update stats
+        const counts = { to_contact: 0, contacted: 0, retained: 0 };
+        document.querySelectorAll('.kanban-list').forEach(list => {
+            counts[list.dataset.status] = list.children.length;
+        });
+        document.getElementById('stat-at-risk').textContent = counts.to_contact;
+        document.getElementById('stat-contacted').textContent = counts.contacted;
+        document.getElementById('stat-retained').textContent = counts.retained;
+    }
+</script>
+{% endblock %}

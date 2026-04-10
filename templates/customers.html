@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header style="margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-end;">
+    <div>
+        <h1 style="font-size: 2rem; margin-bottom: 8px;">Customer Explorer</h1>
+        <p style="color: var(--text-secondary);">Manage and analyze your customer base with advanced filters.</p>
+    </div>
+    <button class="btn" onclick="exportCSV()"><i class="fas fa-download"></i> Export CSV</button>
+</header>
+
+<div class="glass-card" style="margin-bottom: 24px; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 16px;">
+    <div style="position: relative;">
+        <i class="fas fa-search"
+            style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--text-secondary);"></i>
+        <input type="text" id="search-input" placeholder="Search Customer ID..."
+            style="width: 100%; padding: 12px 12px 12px 48px; background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); border-radius: 8px; color: white;">
+    </div>
+    <select id="risk-filter"
+        style="padding: 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); border-radius: 8px; color: white;">
+        <option value="all">Risk: All Levels</option>
+        <option value="High">Risk: High</option>
+        <option value="Medium">Risk: Medium</option>
+        <option value="Low">Risk: Low</option>
+    </select>
+    <select id="contract-filter"
+        style="padding: 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--card-border); border-radius: 8px; color: white;">
+        <option value="all">Contract: All</option>
+        <option value="Month-to-month">Month-to-month</option>
+        <option value="One year">One year</option>
+        <option value="Two year">Two year</option>
+    </select>
+    <button class="btn" style="height: 100%;" onclick="loadCustomers(1)">Apply Filters</button>
+</div>
+
+<div class="glass-card" style="padding: 0; overflow: hidden;">
+    <table id="customer-table">
+        <thead>
+            <tr>
+                <th>Customer ID</th>
+                <th>Tenure</th>
+                <th>Monthly $</th>
+                <th>Contract</th>
+                <th>Risk Level</th>
+                <th>Churn Prob</th>
+                <th>Segment</th>
+                <th style="text-align: right;">Action</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <div
+        style="padding: 24px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--card-border);">
+        <p style="color: var(--text-secondary); font-size: 0.9rem;" id="pagination-info">Showing 1-10 of 0 customers</p>
+        <div style="display: flex; gap: 12px;">
+            <button class="btn" style="background: rgba(255,255,255,0.05); border: 1px solid var(--card-border);"
+                id="prev-btn" onclick="changePage(-1)">Previous</button>
+            <button class="btn" style="background: rgba(255,255,255,0.05); border: 1px solid var(--card-border);"
+                id="next-btn" onclick="changePage(1)">Next</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    let currentPage = 1;
+    const limit = 10;
+    let allCustomers = [];
+
+    document.addEventListener('DOMContentLoaded', () => {
+        loadCustomers(1);
+    });
+
+    async function loadCustomers(page) {
+        currentPage = page;
+        const risk = document.getElementById('risk-filter').value;
+        const contract = document.getElementById('contract-filter').value;
+        const search = document.getElementById('search-input').value;
+
+        const url = `/api/customers?page=${page}&limit=${limit}&risk=${risk}&contract=${contract}&search=${search}`;
+        const data = await fetch(url).then(res => res.json());
+
+        allCustomers = data.customers; // Update for export
+        const tbody = document.querySelector('#customer-table tbody');
+        tbody.innerHTML = '';
+
+        data.customers.forEach((c, i) => {
+            const tr = document.createElement('tr');
+            tr.style.animation = `slideInRow 0.3s ease forwards ${i * 40}ms`;
+            tr.innerHTML = `
+                <td>${c.customer_id}</td>
+                <td>${c.tenure} months</td>
+                <td>$${c.monthly_charges.toFixed(2)}</td>
+                <td>${c.contract}</td>
+                <td><span class="badge badge-${c.risk_level.toLowerCase()}">${c.risk_level}</span></td>
+                <td>
+                    <div style="width: 100px; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; overflow: hidden;">
+                        <div style="width: ${c.churn_probability * 100}%; height: 100%; background: ${getProbColor(c.churn_probability)};"></div>
+                    </div>
+                </td>
+                <td><span style="font-size: 0.8rem; opacity: 0.8;">${c.segment}</span></td>
+                <td style="text-align: right;"><a href="/customer/${c.customer_id}" class="btn" style="padding: 6px 12px; font-size: 0.8rem;">Analyze</a></td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        document.getElementById('pagination-info').textContent = `Showing ${(page - 1) * limit + 1}-${Math.min(page * limit, data.total)} of ${data.total} customers`;
+        document.getElementById('prev-btn').disabled = (page === 1);
+        document.getElementById('next-btn').disabled = (page * limit >= data.total);
+    }
+
+    function changePage(delta) {
+        loadCustomers(currentPage + delta);
+    }
+
+    function getProbColor(p) {
+        if (p >= 0.7) return '#EF4444';
+        if (p >= 0.4) return '#F59E0B';
+        return '#10B981';
+    }
+
+    function exportCSV() {
+        const headers = ["ID", "Tenure", "Monthly Charges", "Contract", "Risk", "Probability", "Segment"];
+        const rows = allCustomers.map(c => [c.customer_id, c.tenure, c.monthly_charges, c.contract, c.risk_level, c.churn_probability, c.segment]);
+
+        let csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", "churn_export.csv");
+        document.body.appendChild(link);
+        link.click();
+    }
+</script>
+{% endblock %}

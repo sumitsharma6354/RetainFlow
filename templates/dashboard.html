@@ -1,0 +1,168 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header style="margin-bottom: 32px;">
+    <h1 style="font-size: 2rem; margin-bottom: 8px;">Dashboard Overview</h1>
+    <p style="color: var(--text-secondary);">Real-time customer churn analytics and risk monitoring.</p>
+</header>
+
+<div class="stats-grid">
+    <div class="glass-card animate-fade-up" style="animation-delay: 0ms;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+                <p class="card-title">Total Customers</p>
+                <p class="card-value" id="stat-total" data-target="0">0</p>
+            </div>
+            <i class="fas fa-users"
+                style="color: var(--accent-blue); background: rgba(59, 130, 246, 0.1); padding: 12px; border-radius: 12px;"></i>
+        </div>
+    </div>
+    <div class="glass-card animate-fade-up" style="animation-delay: 100ms;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+                <p class="card-title">Churn Rate</p>
+                <div style="display: flex; align-items: baseline; gap: 4px;">
+                    <p class="card-value" id="stat-churn-rate" data-target="0" data-suffix="%">0%</p>
+                </div>
+            </div>
+            <div style="width: 44px; height: 44px; position: relative;">
+                <svg viewBox="0 0 36 36" style="width: 100%; height: 100%;">
+                    <path d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none"
+                        stroke="#ef444433" stroke-width="3" />
+                    <path id="churn-circle"
+                        d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" fill="none"
+                        stroke="var(--accent-red)" stroke-width="3" stroke-dasharray="0, 100" />
+                </svg>
+            </div>
+        </div>
+    </div>
+    <div class="glass-card animate-fade-up" style="animation-delay: 200ms;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+                <p class="card-title">Revenue at Risk</p>
+                <p class="card-value" id="stat-revenue" data-target="0" data-prefix="$">$0</p>
+            </div>
+            <i class="fas fa-dollar-sign"
+                style="color: var(--accent-amber); background: rgba(245, 158, 11, 0.1); padding: 12px; border-radius: 12px;"></i>
+        </div>
+    </div>
+    <div class="glass-card animate-fade-up" style="animation-delay: 300ms;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+            <div>
+                <p class="card-title">Retained Customers</p>
+                <p class="card-value" id="stat-retained" data-target="0">0</p>
+            </div>
+            <i class="fas fa-chevron-up"
+                style="color: var(--accent-green); background: rgba(16, 185, 129, 0.1); padding: 12px; border-radius: 12px;"></i>
+        </div>
+    </div>
+</div>
+
+<div class="charts-grid">
+    <div class="glass-card">
+        <h3 style="margin-bottom: 24px;">Churn Risk Prediction Trend</h3>
+        <div style="height: 300px;">
+            <canvas id="trendChart"></canvas>
+        </div>
+    </div>
+    <div class="glass-card">
+        <h3 style="margin-bottom: 24px;">Churn by Contract Type</h3>
+        <div style="height: 300px;">
+            <canvas id="contractChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<div class="charts-grid" style="grid-template-columns: 2fr 3fr;">
+    <div class="glass-card">
+        <h3 style="margin-bottom: 24px;">Churn by Internet Service</h3>
+        <div style="height: 300px;">
+            <canvas id="internetChart"></canvas>
+        </div>
+    </div>
+    <div class="glass-card" style="padding: 0;">
+        <div style="padding: 24px;">
+            <h3 style="margin-bottom: 8px;">Recent High-Risk Customers</h3>
+        </div>
+        <div style="overflow-x: auto;">
+            <table id="recent-customers">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Tenure</th>
+                        <th>Monthly $</th>
+                        <th>Risk</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/charts.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        initDashboard();
+    });
+
+    async function initDashboard() {
+        try {
+            const statsResp = await fetch('/api/stats');
+            if (!statsResp.ok) throw new Error('Failed to fetch stats');
+            const stats = await statsResp.json();
+
+            // Counters
+            animateCounter(document.getElementById('stat-total'), stats.total_customers || 0);
+            animateCounter(document.getElementById('stat-churn-rate'), stats.churn_rate || 0);
+            animateCounter(document.getElementById('stat-revenue'), stats.monthly_revenue_at_risk || 0);
+            animateCounter(document.getElementById('stat-retained'), stats.retained_this_month || 0);
+
+            // Churn circle
+            document.getElementById('churn-circle').style.strokeDasharray = `${stats.churn_rate}, 100`;
+
+            // Charts
+            const trendData = stats.churn_trend;
+            if (trendData) renderTrendChart('trendChart', trendData);
+
+            const contractResp = await fetch('/api/charts/churn-by-contract');
+            if (contractResp.ok) {
+                const contractData = await contractResp.json();
+                renderBarChart('contractChart', contractData.labels, contractData.values, 'Contract Churn');
+            }
+
+            const internetResp = await fetch('/api/charts/churn-by-internet');
+            if (internetResp.ok) {
+                const internetData = await internetResp.json();
+                renderDonutChart('internetChart', internetData.labels, internetData.values);
+            }
+
+            // Recent customers
+            const customersResp = await fetch('/api/customers?limit=6&risk=High');
+            if (customersResp.ok) {
+                const customers = await customersResp.json();
+                const tbody = document.querySelector('#recent-customers tbody');
+                if (tbody && customers.customers) {
+                    customers.customers.forEach((c, i) => {
+                        const tr = document.createElement('tr');
+                        tr.style.animation = `slideInRow 0.3s ease forwards ${i * 50}ms`;
+                        tr.innerHTML = `
+                            <td>${c.customer_id}</td>
+                            <td>${c.tenure} m</td>
+                            <td>$${c.monthly_charges.toFixed(2)}</td>
+                            <td><span class="badge badge-high">High</span></td>
+                            <td><a href="/customer/${c.customer_id}" class="btn" style="padding: 6px 12px; font-size: 0.8rem;">View</a></td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+                }
+            }
+        } catch (error) {
+            console.error('Error initializing dashboard:', error);
+        }
+    }
+</script>
+{% endblock %}
