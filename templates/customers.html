@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-<header style="margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-end;">
+<header class="page-header">
     <div>
         <h1 style="font-size: 2rem; margin-bottom: 8px;">Customer Explorer</h1>
         <p style="color: var(--text-secondary);">Manage and analyze your customer base with advanced filters.</p>
@@ -9,7 +9,7 @@
     <button class="btn" onclick="exportCSV()"><i class="fas fa-download"></i> Export CSV</button>
 </header>
 
-<div class="glass-card" style="margin-bottom: 24px; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 16px;">
+<div class="glass-card filter-bar">
     <div style="position: relative;">
         <i class="fas fa-search"
             style="position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: var(--text-secondary);"></i>
@@ -33,7 +33,7 @@
     <button class="btn" style="height: 100%;" onclick="loadCustomers(1)">Apply Filters</button>
 </div>
 
-<div class="glass-card" style="padding: 0; overflow: hidden;">
+<div class="glass-card" style="padding: 0; overflow-x: auto;">
     <table id="customer-table">
         <thead>
             <tr>

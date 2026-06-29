@@ -3,8 +3,28 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from datetime import datetime
 import os
+import shutil
 
 DATABASE_URL = "sqlite:///./retainflow.db"
+
+# If running on Vercel, copy database to /tmp to make it writeable
+if os.environ.get("VERCEL"):
+    tmp_db_path = "/tmp/retainflow.db"
+    if not os.path.exists(tmp_db_path):
+        try:
+            # Locate the original db file relative to the db.py directory
+            orig_db_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "retainflow.db")
+            if os.path.exists(orig_db_path):
+                shutil.copy2(orig_db_path, tmp_db_path)
+                print(f"Copied DB from {orig_db_path} to {tmp_db_path}")
+            elif os.path.exists("retainflow.db"):
+                shutil.copy2("retainflow.db", tmp_db_path)
+                print("Copied DB from current directory to /tmp")
+            else:
+                print("Warning: retainflow.db not found. Initializing a new database.")
+        except Exception as e:
+            print(f"Error copying SQLite database to /tmp: {e}")
+    DATABASE_URL = f"sqlite:///{tmp_db_path}"
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

@@ -2,14 +2,14 @@
 
 {% block content %}
 <header style="margin-bottom: 32px;">
-    <div style="display: flex; align-items: center; gap: 16px;">
+    <div style="display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
         <a href="/customers" style="color: var(--text-secondary); text-decoration: none;"><i
                 class="fas fa-arrow-left"></i> Back</a>
         <h1 style="font-size: 2rem;">Customer Analysis: {{ customer_id }}</h1>
     </div>
 </header>
 
-<div style="display: grid; grid-template-columns: 1fr 1.2fr 1fr; gap: 24px; margin-bottom: 24px;">
+<div class="detail-grid">
     <!-- Profile Card -->
     <div class="glass-card">
         <div style="text-align: center; margin-bottom: 24px;">
@@ -88,7 +88,7 @@
     <div
         style="position: absolute; right: -20px; top: -20px; font-size: 8rem; opacity: 0.05; transform: rotate(15deg);">
         <i class="fas fa-hand-holding-heart"></i></div>
-    <div style="display: flex; justify-content: space-between; align-items: center;">
+    <div class="retention-card-inner">
         <div>
             <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
                 <span id="retention-urgency" class="badge">URGENCY: LOW</span>
