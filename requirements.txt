@@ -11,3 +11,4 @@ pandas
 numpy
 joblib
 aiofiles
+numba>=0.59.0
